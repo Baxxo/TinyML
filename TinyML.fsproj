@@ -92,10 +92,10 @@
     <Compile Include="Lexer.fs" />
     <Compile Include="Typing.fs" />
     <Compile Include="Eval.fs" />
-    <Compile Include="Main.fs" />
     <None Include="App.config" />
     <Content Include="packages.config" />
     <None Include="test.tml" />
+    <Compile Include="Main.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">

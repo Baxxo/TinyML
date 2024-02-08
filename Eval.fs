@@ -12,9 +12,7 @@ open Ast
 
 let rec eval_expr (venv : value env) (e : expr) : value =
     match e with
-    | Lit lit -> VLit lit 
-    
-    | Var var_name -> lookup venv var_name
+    | Lit lit -> VLit lit
 
     | Lambda (x, _, e) -> Closure (venv, x, e)
 
@@ -27,6 +25,8 @@ let rec eval_expr (venv : value env) (e : expr) : value =
             eval_expr venv' e
 
         | _ -> unexpected_error "non-closure on left hand of application"
+
+    | Var x -> lookup venv x
 
     | BinOp (e1: expr, ("+" | "-" | "*" | "/" as op), e2: expr) ->
         let v1 = eval_expr venv e1
@@ -48,8 +48,8 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         match v1, v2, op with
         | VLit (LBool x), VLit (LBool y), op ->
             match op with
-            | "and" -> VLit(LBool( x && y))
-            | "or" -> VLit(LBool(x || y))
+            | "and" -> VLit(LBool( (&&) x y))
+            | "or" -> VLit(LBool((||)x y))
             | _ -> unexpected_error "eval_expr: unsupported boolean operator for BinOp"
 
         | _ -> unexpected_error "eval_expr: unsupported expression BinOp"
@@ -84,11 +84,6 @@ let rec eval_expr (venv : value env) (e : expr) : value =
 
     | LetIn (_, e) -> eval_expr venv e
 
-    | Tuple l -> // TODO
-        // la funzione map modifica la lista o ne crea una nuova?
-        (*let new_tuple = List.map (fun (f, l) -> f l) eval_expr l
-        VTuple(new_tuple)*)
-
     | UnOp (op,e) ->
         match op with
         | "not" ->
@@ -98,6 +93,9 @@ let rec eval_expr (venv : value env) (e : expr) : value =
             | VLit(LBool(false)) -> VLit(LBool(true))
             | _ -> unexpected_error "eval_expr: unsupported value (%O) for not operator" v
         | _ ->  unexpected_error "eval_expr: unsupported operator (%O) for UnOp" op
+
+    | Tuple tuple ->
+        let new_tuple = List.map (fun x -> eval_expr venv x) tuple in VTuple(new_tuple)
 
     // TODO complete this implementation
 

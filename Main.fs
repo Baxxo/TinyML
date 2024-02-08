@@ -15,8 +15,9 @@ let interpret_expr tenv venv e =
     #if DEBUG
     printfn "AST:\t%A\npretty:\t%s" e (pretty_expr e)
     #endif
-    // TODO you can invoke the typeinfer_expr here
     let t = Typing.typecheck_expr tenv e
+    //let (t_new, subst_ret) = Typing.typeinfer_expr tenv e
+    //let t = Typing.apply_subst t_new subst_ret
     #if DEBUG
     printfn "type:\t%s" (pretty_ty t)
     #endif
@@ -28,7 +29,7 @@ let interpret_expr tenv venv e =
 
 let trap f =
     try f ()
-    with SyntaxError (msg, lexbuf) -> printfn "\nsyntax error: %s\nat token: \"%s\"\nlocation: %O" msg (Array.fold (sprintf "%s%c") "" lexbuf.Lexeme) lexbuf.EndPos
+    with SyntaxError (msg, lexbuf) -> printfn "\nsyntax error: %s\nat token: %A\nlocation: %O" msg lexbuf.Lexeme lexbuf.EndPos
        | TypeError msg             -> printfn "\ntype error: %s" msg
        | UnexpectedError msg       -> printfn "\nunexpected error: %s" msg
 
@@ -44,6 +45,7 @@ let main_interpreter filename =
 let main_interactive () =
     printfn "entering interactive mode..."
     let mutable tenv = Typing.gamma0
+    //let mutable tenv = Typing.gamma0_infer
     let mutable venv = []
     while true do
         trap <| fun () ->
@@ -58,6 +60,7 @@ let main_interactive () =
                     let t, v = interpret_expr tenv venv (LetIn (b, Var x)) // TRICK: put the variable itself as body after the in
                     // update global environments
                     tenv <- (x, t) :: tenv
+                    //tenv <- (x, Forall(Set.empty,t)) :: tenv
                     venv <- (x, v) :: venv
                     x, (t, v)
 
@@ -67,7 +70,7 @@ let main_interactive () =
 [<EntryPoint>]
 let main argv =
     let r =
-        try
+        try 
             if argv.Length < 1 then main_interactive ()
             else main_interpreter argv.[0]
             0

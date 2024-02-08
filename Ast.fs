@@ -18,7 +18,7 @@ let throw_formatted exnf fmt = ksprintf (fun s -> raise (exnf s)) fmt
 
 let unexpected_error fmt = throw_formatted UnexpectedError fmt
 
-// AST types definition
+// types
 //
 
 type tyvar = int
@@ -95,12 +95,9 @@ let (|LetRec|_|) = function
 
 type 'a env = (string * 'a) list  
 
-// find lancia KeyNotFoundException
-// essendo una cosa che mi aspetto (di non trovare qualcosa) allora è corretto usare questa versione
-// una exception fa unwind fino al primo catch o fino al top del programma
-let lookup env (var_name : string) = 
-    let (*name_var_found*) _ , value_var_found = List.find (fun (var_name_in_list, value) -> var_name = var_name_in_list) env
-    value_var_found // <- returned
+let lookup env (x : string) = 
+    let _, v = List.find (fun (x', v) -> x = x') env
+    v
 
 // values
 //
@@ -135,6 +132,7 @@ let pretty_tupled p l = flatten p ", " l
 let rec pretty_ty t =
     match t with
     | TyName s -> s
+    // TODO arrow types are not printed correctly: when the domain is an arrow you need to print parentheses around it
     | TyArrow (t1, t2) -> sprintf "%s -> %s" (pretty_ty t1) (pretty_ty t2)
     | TyVar n -> sprintf "'%d" n
     | TyTuple ts -> sprintf "(%s)" (pretty_tupled pretty_ty ts)
@@ -157,7 +155,7 @@ let rec pretty_expr e =
     | Lambda (x, Some t, e) -> sprintf "fun (%s : %s) -> %s" x (pretty_ty t) (pretty_expr e)
     
     // TODO write a better pretty-printer that puts brackets on non-trivial expressions appearing on the right side of an application
-    | App (e1, e2) -> sprintf "%s [%s]" (pretty_expr e1) (pretty_expr e2)
+    | App (e1, e2) -> sprintf "%s %s" (pretty_expr e1) (pretty_expr e2)
 
     | Var x -> x
 
@@ -199,6 +197,7 @@ let rec pretty_value v =
     | RecClosure (env, f, x, e) -> sprintf "<|%s;%s;%s;%s|>" (pretty_env pretty_value env) f x (pretty_expr e)
     
 
+// for using the %O format specifier to print types, expressions and values, these object extensions define a ToString() method invoking the right pretty-printer
 #nowarn "60"
 type ty with
     override self.ToString () = pretty_ty self
