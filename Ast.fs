@@ -96,8 +96,8 @@ let (|LetRec|_|) = function
 type 'a env = (string * 'a) list  
 
 let lookup env (x : string) = 
-    let _, v = List.find (fun (x', v) -> x = x') env
-    v
+    let var_name, value_find = List.find (fun (x', value) -> x = x') env
+    value_find
 
 // values
 //
@@ -132,8 +132,7 @@ let pretty_tupled p l = flatten p ", " l
 let rec pretty_ty t =
     match t with
     | TyName s -> s
-    // TODO arrow types are not printed correctly: when the domain is an arrow you need to print parentheses around it
-    | TyArrow (t1, t2) -> sprintf "%s -> %s" (pretty_ty t1) (pretty_ty t2)
+    | TyArrow (t1, t2) -> sprintf "(%s) -> %s" (pretty_ty t1) (pretty_ty t2)
     | TyVar n -> sprintf "'%d" n
     | TyTuple ts -> sprintf "(%s)" (pretty_tupled pretty_ty ts)
 
@@ -154,8 +153,7 @@ let rec pretty_expr e =
     | Lambda (x, None, e) -> sprintf "fun %s -> %s" x (pretty_expr e)
     | Lambda (x, Some t, e) -> sprintf "fun (%s : %s) -> %s" x (pretty_ty t) (pretty_expr e)
     
-    // TODO write a better pretty-printer that puts brackets on non-trivial expressions appearing on the right side of an application
-    | App (e1, e2) -> sprintf "%s %s" (pretty_expr e1) (pretty_expr e2)
+    | App (e1, e2) -> sprintf "%s (%s)" (pretty_expr e1) (pretty_expr e2)
 
     | Var x -> x
 

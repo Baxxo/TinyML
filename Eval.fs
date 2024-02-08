@@ -81,8 +81,12 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         | VLit(LBool(true)) ->  eval_expr venv e2 
         | VLit(LBool(false)) -> VLit(LUnit)
         | _ -> unexpected_error "eval_expr: unsupported guard value (%O) for IfThenElse" value_guard
+    | Let (x, Some y, z, xx)-> // TODO
+        VLit(LUnit)
 
-    | LetIn (_, e) -> eval_expr venv e
+    | LetIn (_, e) ->
+        printf "LetIn\n"
+        eval_expr venv e
 
     | UnOp (op,e) ->
         match op with
@@ -96,7 +100,5 @@ let rec eval_expr (venv : value env) (e : expr) : value =
 
     | Tuple tuple ->
         let new_tuple = List.map (fun x -> eval_expr venv x) tuple in VTuple(new_tuple)
-
-    // TODO complete this implementation
 
     //| _ -> unexpected_error "eval_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
