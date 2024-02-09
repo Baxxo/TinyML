@@ -96,6 +96,14 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
     | Lit (LString _) -> TyString, []
     | Lit (LChar _) -> TyChar, [] 
     | Lit LUnit -> TyUnit, []
+    
+    | Var (var_name) -> // TODO
+        // Let value_var = lookup_scheme env var_name
+
+        TyUnit, []
+    
+    | UnOp (op, e) ->
+        typeinfer_expr env (App (Var op, e))
 
     | BinOp (e1, op, e2) ->
         typeinfer_expr env (App (App (Var op, e1), e2))
@@ -109,9 +117,34 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let s = s5 $ s4 $ s3 $ s2 $ s1
         apply_subst t2 s, s
 
+    | IfThenElse (e1, e2, None) ->
+        let t1, s1 = typeinfer_expr env e1
+        let s2 = unify t1 TyBool
+        let t2, s3 = typeinfer_expr env e2
+        let s4 = unify t2 TyUnit
+        let s = s4 $ s3 $ s2 $ s1
+        apply_subst t2 s, s
 
-    // TODO complete the type inference
+    | App (e1, e2) -> // TODO
+        TyUnit, []
+        // let t1, s1 = typeinfer_expr env e1 
+        // let t2, s2 = typeinfer_expr env e2
 
+    | Lambda (var_name, Some ty, e) -> // TODO
+        TyUnit, []
+
+    | Lambda (var_name, None, e) -> // TODO
+        TyUnit, []
+
+    | Let (var_name, Some ty, e1, e2) -> // TODO
+        TyUnit, []
+        
+    | Let (var_name, None, e1, e2) -> // TODO
+        TyUnit, []
+
+    | Tuple (t) -> // TODO
+           TyUnit, []
+    
     | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
 
 
@@ -201,4 +234,4 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
 
     | Tuple es -> TyTuple (List.map (typecheck_expr env) es)
 
-    //| _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+    | _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e

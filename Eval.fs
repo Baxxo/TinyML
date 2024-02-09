@@ -100,4 +100,4 @@ let rec eval_expr (venv : value env) (e : expr) : value =
     | Tuple tuple ->
         let new_tuple = List.map (fun x -> eval_expr venv x) tuple in VTuple(new_tuple)
 
-    //| _ -> unexpected_error "eval_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+    | _ -> unexpected_error "eval_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e

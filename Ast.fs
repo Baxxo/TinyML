@@ -96,8 +96,12 @@ let (|LetRec|_|) = function
 type 'a env = (string * 'a) list  
 
 let lookup env (x : string) = 
-    let var_name, value_find = List.find (fun (x', value) -> x = x') env
+    let name_find, value_find = List.find (fun (x', value) -> x = x') env
     value_find
+
+// TODO
+// let lookup_scheme (env: scheme) (x: string) =
+//    List.find (fun (x', value) -> x 
 
 // values
 //
