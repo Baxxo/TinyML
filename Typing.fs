@@ -201,9 +201,4 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
 
     | Tuple es -> TyTuple (List.map (typecheck_expr env) es)
 
-
-    // TODO you can complete the typechecker implementation with the missing expressions
-
-    // |LetIn 
-
-    | _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+    //| _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e

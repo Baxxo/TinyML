@@ -81,12 +81,11 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         | VLit(LBool(true)) ->  eval_expr venv e2 
         | VLit(LBool(false)) -> VLit(LUnit)
         | _ -> unexpected_error "eval_expr: unsupported guard value (%O) for IfThenElse" value_guard
-    | Let (x, Some y, z, xx)-> // TODO
-        VLit(LUnit)
-
-    | LetIn (_, e) ->
-        printf "LetIn\n"
-        eval_expr venv e
+    
+    | Let (x, _, e1, e2) ->
+        let e1' = eval_expr venv e1
+        let venv' = (x, e1') :: venv
+        eval_expr venv' e2
 
     | UnOp (op,e) ->
         match op with
