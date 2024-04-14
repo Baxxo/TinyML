@@ -7,18 +7,40 @@ module TinyML.Typing
 
 open Ast
 
+// global counter for new name of variable
+let mutable free_var_name = 0
+
+let new_fresh_name =
+    free_var_name <- free_var_name + 1
+    free_var_name 
+
 let type_error fmt = throw_formatted TypeError fmt
 
 type subst = (tyvar * ty) list
 
-// TODO implement this
-let rec freevars_ty t = Set.empty
+(*
+type ty =
+    | TyName of string
+    | TyArrow of ty * ty
+    | TyVar of tyvar
+    | TyTuple of ty list
+*)
 
-// TODO implement this
-let freevars_scheme (Forall (tvs, t)) = Set.empty
+// calculates the free type var occuring in a type 
+let rec freevars_ty t =
+    match t with
+    | TyName tn -> Set.empty
+    | TyVar tv -> Set.singleton tv
+    | TyArrow (t1, t2) -> (freevars_ty t1) +  (freevars_ty t2)
+    | TyTuple tl -> List.fold (fun l_set x -> l_set + freevars_ty x) Set.empty tl
 
-// TODO implement this
-let freevars_scheme_env env = Set.empty
+// calculates the free type var occuring in a scheme 
+let freevars_scheme (Forall (tvs, t)) =
+    Set.difference (freevars_ty t) tvs 
+
+// calculates the free type var occuring in an enviroment
+let freevars_scheme_env (env : ('a * scheme) list) =
+    List.fold (fun ftv_env (s_tyvar, ty) -> ftv_env + freevars_scheme ty) Set.empty env
 
 
 let rec apply_subst (t : ty) (s : subst) : ty =
@@ -43,6 +65,7 @@ let rec compose_subst (s1 : subst) (s2 : subst) : subst = //s1 @ s2
 
 let ($) = compose_subst
 
+// accept two types and produces a substitution that makes the 2 types equal
 let rec unify (t1 : ty) (t2 : ty) : subst = 
     match (t1, t2) with
     | (TyName s1, TyName s2) when s1 = s2 -> []
@@ -98,7 +121,9 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
     | Lit LUnit -> TyUnit, []
     
     | Var (var_name) -> // TODO
-        // Let value_var = lookup_scheme env var_name
+        // var_name = x nad x has to belong to the env
+        let value_var = lookup_scheme env var_name
+        
 
         TyUnit, []
     
@@ -111,17 +136,21 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
     | IfThenElse (e1, e2, Some e3) ->
         let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyBool
+
         let t2, s3 = typeinfer_expr env e2
         let t3, s4 = typeinfer_expr env e3
         let s5 = unify t2 t3
+
         let s = s5 $ s4 $ s3 $ s2 $ s1
         apply_subst t2 s, s
 
     | IfThenElse (e1, e2, None) ->
         let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyBool
+
         let t2, s3 = typeinfer_expr env e2
         let s4 = unify t2 TyUnit
+
         let s = s4 $ s3 $ s2 $ s1
         apply_subst t2 s, s
 
@@ -235,3 +264,12 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
     | Tuple es -> TyTuple (List.map (typecheck_expr env) es)
 
     | _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+
+
+// refresh type variables
+let refresh (x:scheme ) = // TODO
+    // it is probably that i have to use the applying substitution function
+
+    
+// converting type scheme into a type by refreshing its polymorphic type variables
+let instantiate (s: scheme) = refresh s

@@ -3,6 +3,14 @@
 * Main.fs: main code
 *)
 
+(*
+1) parse the expression
+2) produce a tree (AST) and pretty print
+3) infers and print the type
+4) evaluates and print the result of the expression
+5) systetize everything in one line (like F#)
+*)
+
 module TinyML.Main
 
 open System
