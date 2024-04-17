@@ -37,6 +37,7 @@ let TyString = TyName "string"
 let TyBool = TyName "bool"
 let TyUnit = TyName "unit"
 
+// Forall of Set<tyvar> * ty
 type scheme = Forall of tyvar Set * ty
 
 // literals
@@ -99,10 +100,12 @@ let lookup env (x : string) : 'a =
     let _, value_find = List.find (fun (x', _) -> x = x') env
     value_find
 
-// TODO
+// TODO: check se può essere uguale o comunque utilizzare funzione lookup
 let lookup_scheme (env: scheme env) (x: string) : scheme =
     let _, value_find = List.find (fun (x', _) -> x = x') env
     value_find
+    (*let value_find = lookup env x
+    value_find*)
 
 // values
 //
