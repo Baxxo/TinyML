@@ -50,22 +50,17 @@ let rec apply_subst_to_subst (s1: subst) (s2:subst): subst =
     | [] -> []
     | (v, t_y) :: t -> (v, apply_subst t_y s1) :: apply_subst_to_subst s1 t
 
+// devo applicare le substitution a tutte le coppie che non contengono la prima parte della substitution
 let apply_subst_to_scheme (Forall(tvs, t)) (s: subst): scheme =
     let new_subst = List.filter (fun (tv,_) -> not (Set.contains tv tvs)) s
     Forall(tvs, apply_subst t new_subst)
 
-// TODO
-(*
-let apply_subst_to_env (env: scheme) (s: subst): scheme =
-    List.map (fun )
-    (*
+let rec apply_subst_to_env (env: scheme env) (s: subst): scheme env =
     match env with
-    | ForAll (vars, ty) ->
-        let substitutedVars = List.map (apply_subst_to_type s) vars
-        let substitutedTy = apply_subst_to_type s ty
-        ForAll (substitutedVars, substitutedTy)
-    *)
-*)
+    | [] -> []
+    | (tv, t) :: tail ->
+        (tv, apply_subst_to_scheme t s) :: apply_subst_to_env tail s
+    
 
 let rec compose_subst (s1 : subst) (s2 : subst) : subst = //s1 @ s2
     match s1 with
@@ -179,20 +174,20 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let s2 = unify t1 TyBool
         
         let s3 = s2 $ s1
-        let t2, s4 = typeinfer_expr env e2
+        let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
 
         let s5 = s4 $ s3
-        let t3, s6 = typeinfer_expr env e3
+        let t3, s6 = typeinfer_expr (apply_subst_to_env env s5) e3
 
         let s7 = s6 $ s5
-        let s8 = unify t2 t3
+        let s8 = unify (apply_subst t2 s7) (apply_subst t3 s7)
 
         let s9 = s8 $ s7
 
         apply_subst t2 s8, s9
 
     | IfThenElse (e1, e2, None) ->
-        let t1, s1 = typeinfer_expr env e1
+        (*let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyBool
 
         let t2, s3 = typeinfer_expr env e2
@@ -200,19 +195,39 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
         let s = s4 $ s3 $ s2 $ s1
 
-        apply_subst t2 s, s
+        apply_subst t2 s, s*)
+        
+        let t1, s1 = typeinfer_expr env e1
+        let s2 = unify t1 TyBool
+                
+        let s3 = s2 $ s1
+        let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
+        
+        let s5 = s4 $ s3
 
-    | App (e1, e2) -> // TODO
-        let t1, s1 = typeinfer_expr env e1 
-        let t2, s2 = typeinfer_expr env e2
+        let s6 = unify t2 TyUnit
+        
+        apply_subst t2 s5, s6
 
-        let (s3: subst) = unify t1 t2
+    | App (e1, e2) ->
+        // questo secondo il foglio,
+        // secondo wikipedia però dovrei utilizzare ciò che c'è tra ()
+        // https://wikimedia.org/api/rest_v1/media/math/render/svg/431b94815103ac9dc77d0e92739456c3c2c90803
+        let t1, s1 = typeinfer_expr env e1
 
-        let a_new = new_fresh_name ()
+        let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
 
-        let (t:subst) = []
+        let alpha = new_fresh_name ()
 
-        TyUnit, []
+        // let s3 = unify (apply_subst t1 s2) (TyArrow (t2, alpha))
+        let s3 = unify t1 (TyArrow (t2, alpha))
+
+        let t = apply_subst alpha s3
+
+        // let s4 = s3 $ s2 $ s1
+        let s4 = s3 $ s2
+
+        t, s4
 
     | Lambda (var_name, Some ty, e) -> // TODO
         TyUnit, []
@@ -220,17 +235,29 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
     | Lambda (var_name, None, e) -> // TODO
         TyUnit, []
 
-    | Let (var_name, Some ty, e1, e2) -> // TODO
-        TyUnit, []
-        
+    | Let (var_name, Some ty, e1, e2) -> // TODO: check
+        let t1, s1 = typeinfer_expr env e1
+        let scheme1 = generalize (apply_subst_to_env env s1) t1
+        let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
+        let s3 = s2 $ s1
+
+        t2, s3
+
     | Let (var_name, None, e1, e2) -> // TODO
         TyUnit, []
-(*
-    | Tuple (t: expr list) -> // TODO
-        
-        let t_new = List.map (fun (e) -> (apply_subst e)) t
 
-        TyTuple t_new, []*)
+    | LetRec (var_name, Some ty, e1, e2) -> // TODO
+           TyUnit, []
+           
+    | LetRec (var_name, None, e1, e2) -> // TODO
+            TyUnit, []
+            
+    | Tuple (t: expr list) -> // TODO
+        TyUnit, []
+
+        //let t_new = List.fold (fun (expr) -> (typeinfer_expr env expr)) t
+
+        //TyTuple t_new, []
     
     | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
 
