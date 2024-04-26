@@ -157,61 +157,28 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
     | BinOp (e1, op, e2) ->
         typeinfer_expr env (App (App (Var op, e1), e2))
 
-    | IfThenElse (e1, e2, Some e3) ->
-        (*
+    | IfThenElse (e1, e2, e3o) ->
         let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyBool
 
         let t2, s3 = typeinfer_expr env e2
-        let t3, s4 = typeinfer_expr env e3
-        let s5 = unify t2 t3
+        match e3o with        
+        | None ->
+            let s4 = unify t2 TyUnit
 
-        let s = s5 $ s4 $ s3 $ s2 $ s1
-        apply_subst t2 s, s
-        *)
+            let s = s4 $ s3 $ s2 $ s1
+            apply_subst t2 s, s
 
-        let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyBool
-        
-        let s3 = s2 $ s1
-        let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
+        | Some e3 ->
+            let t3, s4 = typeinfer_expr env e3
+            let s5 = unify t2 t3
 
-        let s5 = s4 $ s3
-        let t3, s6 = typeinfer_expr (apply_subst_to_env env s5) e3
-
-        let s7 = s6 $ s5
-        let s8 = unify (apply_subst t2 s7) (apply_subst t3 s7)
-
-        let s9 = s8 $ s7
-
-        apply_subst t2 s8, s9
-
-    | IfThenElse (e1, e2, None) ->
-        (*let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyBool
-
-        let t2, s3 = typeinfer_expr env e2
-        let s4 = unify t2 TyUnit
-
-        let s = s4 $ s3 $ s2 $ s1
-
-        apply_subst t2 s, s*)
-        
-        let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyBool
-                
-        let s3 = s2 $ s1
-        let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
-        
-        let s5 = s4 $ s3
-
-        let s6 = unify t2 TyUnit
-        
-        apply_subst t2 s5, s6
+            let s = s5 $ s4 $ s3 $ s2 $ s1
+            apply_subst t2 s, s
 
     | App (e1, e2) ->
         // questo secondo il foglio,
-        // secondo wikipedia però dovrei utilizzare ciò che c'è tra ()
+        // secondo wikipedia però dovrei utilizzare ciò che c'è tra //
         // https://wikimedia.org/api/rest_v1/media/math/render/svg/431b94815103ac9dc77d0e92739456c3c2c90803
         let t1, s1 = typeinfer_expr env e1
 
@@ -229,28 +196,48 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
         t, s4
 
-    | Lambda (var_name, Some ty, e) -> // TODO
-        TyUnit, []
+    | Lambda (var_name, tyo, e) ->
+        // inizio lez. 17
+        // per poli lez. 20
+        let alpha = new_fresh_name ()
+        let new_scheme = Forall(Set.empty, alpha) 
 
-    | Lambda (var_name, None, e) -> // TODO
-        TyUnit, []
+        let (t2: ty, s1:subst) = typeinfer_expr ((var_name, new_scheme) :: env) e
 
-    | Let (var_name, Some ty, e1, e2) -> // TODO: check
+        let t1: ty = apply_subst alpha s1
+
+        match tyo with
+        | None -> TyArrow(t1, t2), s1
+        | Some t_n ->
+            // Rendo i tipi compatibili trovando una sostituzione
+            let s = unify t_n t1
+            // Applico a t1 e t2
+            let t1 = apply_subst t1 s
+            let t2 = apply_subst t2 s
+            // Restituisce il tipo della funzione e la sostituzione risultante
+            TyArrow(t1, t2), s
+
+    | Let (var_name, tyo, e1, e2) ->
+        // lez. 19
         let t1, s1 = typeinfer_expr env e1
-        let scheme1 = generalize (apply_subst_to_env env s1) t1
-        let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
-        let s3 = s2 $ s1
 
-        t2, s3
+        let env = apply_subst_to_env env s1
 
-    | Let (var_name, None, e1, e2) -> // TODO
-        TyUnit, []
+        let scheme1 = generalize env t1
 
-    | LetRec (var_name, Some ty, e1, e2) -> // TODO
+        // lez. 15
+        let new_env : scheme env = (var_name, scheme1) :: env
+
+        let t2, s2 = typeinfer_expr new_env e2
+
+        match tyo with
+        | None -> t2, s2 $ s1
+        | Some t ->
+            let s4 = compose_subst (unify t1 t) s1
+            apply_subst t2 s4, s4
+
+    | LetRec (var_name, tyo, e1, e2) -> // TODO
            TyUnit, []
-           
-    | LetRec (var_name, None, e1, e2) -> // TODO
-            TyUnit, []
             
     | Tuple (t: expr list) -> // TODO
         TyUnit, []
@@ -349,3 +336,91 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
     | Tuple es -> TyTuple (List.map (typecheck_expr env) es)
 
     | _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+
+
+(*
+
+| IfThenElse (e1, e2, e3o) ->
+(*
+Versione prof
+let t1, s1 = typeinfer_expr env e1
+let s2 = unify t1 TyBool
+
+let t2, s3 = typeinfer_expr env e2
+let t3, s4 = typeinfer_expr env e3
+let s5 = unify t2 t3
+
+let s = s5 $ s4 $ s3 $ s2 $ s1
+apply_subst t2 s, s
+*)
+
+let t1, s1 = typeinfer_expr env e1
+let s2 = unify t1 TyBool
+
+let t2, s3 = typeinfer_expr env e2
+match e3o with        
+| None ->
+    let s4 = unify t2 TyUnit
+
+    let s = s4 $ s3 $ s2 $ s1
+    apply_subst t2 s, s
+
+| Some e3 ->
+    let t3, s4 = typeinfer_expr env e3
+    let s5 = unify t2 t3
+
+    let s = s5 $ s4 $ s3 $ s2 $ s1
+    apply_subst t2 s, s
+
+(*
+let t1, s1 = typeinfer_expr env e1
+let s2 = unify t1 TyBool
+
+let s3 = s2 $ s1
+let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
+
+let s5 = s4 $ s3
+
+match e3o with        
+| None ->        
+    let s6 = unify t2 TyUnit                    
+    apply_subst t2 s5, s6
+
+| Some e3 ->
+    let t3, s6 = typeinfer_expr (apply_subst_to_env env s5) e3
+
+    let s7 = s6 $ s5
+
+    let s8 = unify (apply_subst t2 s7) (apply_subst t3 s7)
+
+    let s9 = s8 $ s7
+
+    apply_subst t2 s8, s9
+*)
+
+    (*| IfThenElse (e1, e2, None) ->
+(*
+Versione prof
+let t1, s1 = typeinfer_expr env e1
+let s2 = unify t1 TyBool
+
+let t2, s3 = typeinfer_expr env e2
+let s4 = unify t2 TyUnit
+
+let s = s4 $ s3 $ s2 $ s1
+apply_subst t2 s, s
+*)
+
+let t1, s1 = typeinfer_expr env e1
+let s2 = unify t1 TyBool
+        
+let s3 = s2 $ s1
+let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
+
+let s5 = s4 $ s3
+
+let s6 = unify t2 TyUnit
+
+apply_subst t2 s5, s6*)
+
+*)
