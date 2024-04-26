@@ -226,7 +226,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let scheme1 = generalize env t1
 
         // lez. 15
-        let new_env : scheme env = (var_name, scheme1) :: env'
+        let new_env = (var_name, scheme1) :: env'
 
         let t2, s2 = typeinfer_expr new_env e2
 
@@ -239,8 +239,34 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             // Restituisco il tipo della funzione e la sostituzione risultante
             apply_subst t2 s4, s4 $ s2
 
-    | LetRec (var_name, tyo, e1, e2) -> // TODO
-           TyUnit, []
+    | LetRec (var_name, tyo, e1, e2) ->
+        let alpha = new_fresh_name ()
+        let sch = Forall(Set.empty, alpha)
+
+        let env' = (var_name, sch) :: env
+
+        let t1, s1 = typeinfer_expr env' e1
+
+        let env1 = apply_subst_to_env env s1
+
+        let scheme1 = generalize env1 t1
+
+        let new_env = (var_name, scheme1) :: env1
+
+        let t2, s2 = typeinfer_expr new_env e2
+
+        let s3 = unify alpha (apply_subst t1 s1)
+
+        let s4 = s3 $ s2 $ s1
+
+        match tyo with
+        | None -> t2, s4
+        | Some t ->
+            // Rendo i tipi compatibili trovando una sostituzione
+            let s = unify t1 t
+            let s4 = s $ s1
+            // Restituisco il tipo della funzione e la sostituzione risultante
+            apply_subst t2 s4, s4 $ s2
             
     | Tuple (t: expr list) -> // TODO
         TyUnit, []
