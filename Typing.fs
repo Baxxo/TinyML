@@ -268,12 +268,26 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             // Restituisco il tipo della funzione e la sostituzione risultante
             apply_subst t2 s4, s4 $ s2
             
-    | Tuple (t: expr list) -> // TODO
-        TyUnit, []
+    | Tuple tup ->
+        
+        let infer_expr (accu_t, accu_s) expr =
+            let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
+            (accu_t @ List.singleton (apply_subst t_i s_i)), (s_i $ accu_s)
 
-        //let t_new = List.fold (fun (expr) -> (typeinfer_expr env expr)) t
+        let ty_tup, sub_tup = List.fold infer_expr ( List.empty, List.empty) tup
 
-        //TyTuple t_new, []
+
+        TyTuple ty_tup, sub_tup
+        (*
+        per fare type infer del tipo sulle tuple devo
+        -  applicare ad ogni expr la type inference (con una map sulla lista tipo),
+            con l'env aggiornato a quella prima (qui è la parte che boh)
+             - per fare questo posso accumulare tutte le substitution e applicarle ogni volta all'env originale
+             (non c'è bisogno di portarsi dietro l'env modificato)
+               
+        -  poi faccio una fold della lista delle expr e delle substitution
+        -  ritorno
+        *)
     
     | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
 
