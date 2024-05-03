@@ -11,6 +11,12 @@
 
 //let newx = 3 in newx
 
+(*
 let f x y = (x, y) in
 let g x = f x x
 in ()
+*)
+
+//fattoriale
+// 3! = 3 * 2 * 1
+let rec fact num = if num = 1 then 1 else num * fact (num - 1) in fact 3

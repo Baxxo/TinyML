@@ -12,6 +12,23 @@ let type_error fmt = throw_formatted TypeError fmt
 type subst = (tyvar * ty) list
 
 
+
+let lookup env (x : string) : 'a = 
+  //let _, value_find = List.find (fun (x', _) -> x = x') env
+  //value_find
+  let op = List.tryFind (fun (x', _) -> x = x') env
+  match op with
+  | None -> type_error "Error during lookup of %s" x
+  | Some (_, value_find) -> value_find
+  
+// TODO: check se può essere uguale o comunque utilizzare funzione lookup
+let lookup_scheme (env: scheme env) (x: string) : scheme =
+  (*let _, value_find = List.find (fun (x', _) -> x = x') env
+  value_find*)
+  let value_find = lookup env x
+  value_find
+
+
 // Freevar
 // 
 
@@ -41,7 +58,12 @@ let freevars_scheme_env (env : ('a * scheme) list) =
 let rec apply_subst (t : ty) (s : subst) : ty =
     match t with
     | TyName _ -> t
-    | TyVar n -> let _, r = List.find (fun (n', t) -> n = n') s in r
+    | TyVar n ->
+        //let _, r = List.find (fun (n', t) -> n = n') s in r
+        let op = List.tryFind (fun (n', t) -> n = n') s
+        match op with
+        | None -> t
+        | Some (_, r) -> r
     | TyArrow (t1, t2) -> TyArrow (apply_subst t1 s, apply_subst t2 s)
     | TyTuple tuple -> let new_tuple =  List.map (fun x -> apply_subst x s) tuple in TyTuple(new_tuple)
 
@@ -149,13 +171,23 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let (value_var : scheme) = lookup_scheme env var_name
         let (var_ty: ty) = instantiate value_var
 
-        var_ty, List.empty
+        var_ty, []
 
     | UnOp (op, e) ->
         typeinfer_expr env (App (Var op, e))
 
     | BinOp (e1, op, e2) ->
-        typeinfer_expr env (App (App (Var op, e1), e2))
+        let t1, s1 = typeinfer_expr env e1
+        let s2 = unify t1 TyInt
+        let s3 = s2 $ s1
+
+        let env' = apply_subst_to_env env s3
+
+        let t2, s4 = typeinfer_expr env' e2
+        let s5 = unify t2 TyInt
+        let s6 = s5 $ s4
+
+        TyInt, s6
 
     | IfThenElse (e1, e2, e3o) ->
         let t1, s1 = typeinfer_expr env e1
@@ -274,7 +306,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
             (accu_t @ List.singleton (apply_subst t_i s_i)), (s_i $ accu_s)
 
-        let ty_tup, sub_tup = List.fold infer_expr ( List.empty, List.empty) tup
+        let ty_tup, sub_tup = List.fold infer_expr ( [], []) tup
 
 
         TyTuple ty_tup, sub_tup

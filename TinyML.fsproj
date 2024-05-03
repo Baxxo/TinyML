@@ -96,6 +96,7 @@
     <Content Include="packages.config" />
     <None Include="test.tml" />
     <Compile Include="Main.fs" />
+    <None Include="test.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core">
