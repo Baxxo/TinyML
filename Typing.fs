@@ -21,7 +21,6 @@ let lookup env (x : string) : 'a =
   | None -> type_error "Error during lookup of %s" x
   | Some (_, value_find) -> value_find
   
-// TODO: check se può essere uguale o comunque utilizzare funzione lookup
 let lookup_scheme (env: scheme env) (x: string) : scheme =
   (*let _, value_find = List.find (fun (x', _) -> x = x') env
   value_find*)
@@ -189,7 +188,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
     //    TyBool, s6
         
-    | BinOp (e1, ("+" | "-" | "*" | "/" | "<" | ">" | "<=" | ">=" as op), e2) ->
+    | BinOp (e1, ("+" | "-" | "*" | "/" | "<" | ">" | "<=" | ">=" as ope), e2) ->
         let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyInt
         let s3 = s2 $ s1
@@ -200,10 +199,21 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let s5 = unify t2 TyInt
         let s6 = s5 $ s4
 
-        match op with
+        match ope with
         | "+" | "-" | "*" | "/" -> TyInt, s6
         | "<" | ">" | "<=" | ">=" -> TyBool, s6
-        | _ -> type_error "Unsupported operator %s" op
+        | _ -> type_error "Unsupported operator %s" ope
+    
+    
+    | BinOp (e1, ("=" as ope), e2) ->
+        let t1, s1 = typeinfer_expr env e1
+        let t2, s2 = typeinfer_expr env e2
+
+        let sz = unify t1 t2
+
+        let s3 = sz $ s2 $ s1
+
+        TyBool, s3
 
     | IfThenElse (e1, e2, e3o) ->
         let t1, s1 = typeinfer_expr env e1

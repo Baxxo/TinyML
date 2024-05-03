@@ -87,6 +87,11 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         let venv' = (x, e1') :: venv
         eval_expr venv' e2
 
+    | LetRec (x, _, e1, e2) ->
+        let e1' = eval_expr venv e1
+        let venv' = (x, e1') :: venv
+        eval_expr venv' e2
+
     | UnOp (op,e) ->
         match op with
         | "not" ->
