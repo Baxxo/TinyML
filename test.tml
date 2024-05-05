@@ -11,15 +11,19 @@
 
 //let newx = 3 in newx
 
+//fattoriale
+// 3! = 3 * 2 * 1
+
+// if (3 + 1) > (3 - 1) then true else false
+
+// let rec fattoriale num = if num = 1 then 1 else num * fattoriale (num - 1) in fattoriale 3
+
+// 6 % 2
+
 (*
 let f x y = (x, y) in
 let g x = f x x
 in ()
 *)
 
-//fattoriale
-// 3! = 3 * 2 * 1
-
-// if (3 + 1) > (3 - 1) then true else false
-// 3 % 1
-let rec fattoriale num = if num = 1 then 1 else num * fattoriale (num - 1) in fattoriale 3
+3

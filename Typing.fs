@@ -118,6 +118,7 @@ let gamma0 = [
     ("-", TyArrow (TyInt, TyArrow (TyInt, TyInt)))
     ("*", TyArrow (TyInt, TyArrow (TyInt, TyInt)))
     ("/", TyArrow (TyInt, TyArrow (TyInt, TyInt)))
+    ("%", TyArrow (TyInt, TyArrow (TyInt, TyInt)))
     ("<", TyArrow (TyInt, TyArrow (TyInt, TyBool)))
     (">", TyArrow (TyInt, TyArrow (TyInt, TyBool)))
     ("<=", TyArrow (TyInt, TyArrow (TyInt, TyBool)))
@@ -129,6 +130,7 @@ let gamma0_infer = [
     ("-", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyInt))))
     ("*", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyInt))))
     ("/", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyInt))))
+    ("%", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyInt))))
     ("<", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyBool))))
     (">", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyBool))))
     ("<=", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyBool))))
@@ -188,7 +190,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
     //    TyBool, s6
         
-    | BinOp (e1, ("+" | "-" | "*" | "/" | "<" | ">" | "<=" | ">=" as ope), e2) ->
+    | BinOp (e1, ("+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" as ope), e2) ->
         let t1, s1 = typeinfer_expr env e1
         let s2 = unify t1 TyInt
         let s3 = s2 $ s1
@@ -200,7 +202,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         let s6 = s5 $ s4
 
         match ope with
-        | "+" | "-" | "*" | "/" -> TyInt, s6
+        | "+" | "-" | "*" | "/" | "%" -> TyInt, s6
         | "<" | ">" | "<=" | ">=" -> TyBool, s6
         | _ -> type_error "Unsupported operator %s" ope
     
@@ -406,7 +408,7 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
         let t2 = typecheck_expr env e2
         t2
 
-    | BinOp (e1, ("+" | "-" | "*" | "/" as op), e2) ->
+    | BinOp (e1, ("+" | "-" | "*" | "/" | "%" as op), e2) ->
         let t1 = typecheck_expr env e1
         if t1 <> TyInt then type_error "left hand of (%s) operator is not an int: %O" op t1
         let t2 = typecheck_expr env e2
