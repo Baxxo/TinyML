@@ -26,4 +26,49 @@ let g x = f x x
 in ()
 *)
 
-3
+
+(* comment 
+   in many 
+   lines *)
+
+// line comment
+
+(*
+let f x y = (x, y) in
+let g x = f x x
+in ()
+*)
+
+
+
+// (fun (x:int) -> x) 10
+
+// (fun x -> x) 10+1
+
+// (fun x -> fun y -> fun z -> if z then y else x) 10 true false
+
+// if true then 10
+
+// true and true
+
+// not not not false
+
+// (10, true, (fun x -> x+1)30, 'c', "ciaoo")
+
+// let x : int = if false then 10 else 15 in x+1
+
+// let x = 10 - 5 in x
+
+// let rec R x = x + 1 in R 1
+
+// (fun x -> fun y -> if x = y then "EQUAL" else "DIFFERENT") 'f' 'e'
+
+// let x = (10, true, 12, 'c', "Hello!") in let y = (10, true, 12, 'c', "Hello!") in if x = y then "EQUAL" else "DIFFERENT"
+
+// let x = 10 in y
+
+// false or false
+
+// (fun x -> fun y -> fun z -> if x then y else z) (if 10 > 15 then true else false) (10) (let a = 50 in a)
+
+// fun x -> fun y -> fun z -> x

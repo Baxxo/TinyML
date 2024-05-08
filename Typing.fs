@@ -174,21 +174,15 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
         var_ty, []
 
+    | UnOp("not", e) ->
+        let t1, s1 = typeinfer_expr env e
+        let s2 = unify t1 TyBool
+        let s3 = s2 $ s1
+        
+        TyBool, s3
+        
     | UnOp (op, e) ->
         typeinfer_expr env (App (Var op, e))
-
-    //| BinOp (e1, ( as op), e2) ->
-    //    let t1, s1 = typeinfer_expr env e1
-    //    let s2 = unify t1 TyBool
-    //    let s3 = s2 $ s1
-
-    //    let env' = apply_subst_to_env env s3
-
-    //    let t2, s4 = typeinfer_expr env' e2
-    //    let s5 = unify t2 TyBool
-    //    let s6 = s5 $ s4
-
-    //    TyBool, s6
         
     | BinOp (e1, ("+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" as ope), e2) ->
         let t1, s1 = typeinfer_expr env e1
@@ -204,6 +198,21 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
         match ope with
         | "+" | "-" | "*" | "/" | "%" -> TyInt, s6
         | "<" | ">" | "<=" | ">=" -> TyBool, s6
+        | _ -> type_error "Unsupported operator %s" ope
+        
+    | BinOp (e1, ("and" | "or" as ope), e2) ->
+        let t1, s1 = typeinfer_expr env e1
+        let s2 = unify t1 TyBool
+        let s3 = s2 $ s1
+        
+        let env' = apply_subst_to_env env s3
+        
+        let t2, s4 = typeinfer_expr env' e2
+        let s5 = unify t2 TyBool
+        let s6 = s5 $ s4
+
+        match ope with
+        | "and" | "or" -> TyBool, s6
         | _ -> type_error "Unsupported operator %s" ope
     
     
