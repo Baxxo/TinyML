@@ -55,7 +55,9 @@ let freevars_scheme_env (env : ('a * scheme) list) =
     List.fold (fun ftv_env (s_tyvar, ty) -> ftv_env + freevars_scheme ty) Set.empty env
 
 let rec apply_subst (t : ty) (s : subst) : ty =
+    #if DEBUG
     printf "\napply_subst: %O, %O\n" t s
+    #endif
     match t with
     | TyName _ -> t
     | TyVar n ->
@@ -81,12 +83,16 @@ let rec apply_subst (t : ty) (s : subst) : ty =
 
 // devo applicare le substitution a tutte le coppie che non contengono la prima parte della substitution
 let apply_subst_to_scheme (Forall(tvs, t)) (s: subst): scheme =
+    #if DEBUG
     printf "\napply_subst_to_scheme: Forall(%O, %O), %O\n" tvs t s
+    #endif
     let new_subst = List.filter (fun (tv,_) -> not (Set.contains tv tvs)) s
     Forall(tvs, apply_subst t new_subst)
 
 let rec apply_subst_to_env (env: scheme env) (s: subst): scheme env =
+    #if DEBUG
     printf "\napply_subst_to_env: %O, %O\n" env s
+    #endif
     match env with
     | [] -> []
     | (tv, t) :: tail ->
@@ -115,7 +121,9 @@ prima di aggiungerla alla lista delle sostituzioni composte.
 Inoltre, dobbiamo filtrare le sostituzioni di s2 che non sono già presenti in s1.
 *)
 let rec compose_subst (s1 : subst) (s2 : subst) : subst =
+    #if DEBUG
     printf "\ncompose_subst: %O, %O\n" s1 s2
+    #endif
     let s1' = List.map (fun (v, ty) -> (v, apply_subst ty s2)) s1
     let s2' = List.filter (fun (v, _) -> not (List.exists (fun (v', _) -> v = v') s1)) s2
     s1' @ s2'
@@ -126,7 +134,9 @@ let ($) = compose_subst
 
 // accept two types and produces a substitution that makes the 2 types equal
 let rec unify (t1 : ty) (t2 : ty) : subst =
+    #if DEBUG
     printf "\nunify: %O, %O\n" t1 t2
+    #endif
     match (t1, t2) with
     | (TyName s1, TyName s2) when s1 = s2 -> []
 
@@ -181,7 +191,9 @@ let gamma0_infer = [
 // polymorphic types through the universal quantifier Forall
 let generalize env t =
     let diff = Set.difference (freevars_ty t) (freevars_scheme_env env)
+    #if DEBUG
     printf "diff: %O\n" diff
+    #endif
     Forall(diff, t)
 
 // Instantiation
@@ -190,7 +202,9 @@ let generalize env t =
 // converting type scheme into a type by refreshing its polymorphic type variables
 let instantiate (Forall (tvs, t)) : ty =
     let new_vars:subst = Set.fold (fun acc ty_name -> (ty_name, new_fresh_name ()) :: acc ) List.empty tvs
+    #if DEBUG
     printf "new_vars: %O\n" new_vars
+    #endif
     apply_subst t new_vars
 
 
@@ -198,36 +212,54 @@ let instantiate (Forall (tvs, t)) : ty =
 //
 
 let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
+    #if DEBUG
     printf"\n\ne: %O \n" e
     printf"\n\ne: %O \n" (e.GetType ())
+    #endif
 
     let nr =
         match e with
         | Lit (LInt _) ->
+            #if DEBUG
             printf "\nLInt\n"
+            #endif
             TyInt, []
         | Lit (LBool _) -> 
+            #if DEBUG
             printf "\nLBool\n"
+            #endif
             TyBool, []
         | Lit (LFloat _) -> 
+            #if DEBUG
             printf "\nLFloat\n"
+            #endif
             TyFloat, [] 
         | Lit (LString _) -> 
+            #if DEBUG
             printf "\nLString\n"
+            #endif
             TyString, []
         | Lit (LChar _) -> 
+            #if DEBUG
             printf "\nLChar\n"
+            #endif
             TyChar, [] 
         | Lit LUnit -> 
+            #if DEBUG
             printf "\nLUnit\n"
+            #endif
             TyUnit, []
     
         | Var (var_name) -> 
+            #if DEBUG
             printf "\nVar\n"
+            #endif
             let (value_var : scheme) = lookup_scheme env var_name
             let (var_ty: ty) = instantiate value_var
         
+            #if DEBUG
             printf "var_ty: %O\n" var_ty
+            #endif
             var_ty, []
 
         | UnOp("not", e) ->
@@ -238,7 +270,9 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             TyBool, s3
         
         | UnOp (op, e) ->
+            #if DEBUG
             printf "\UnOp\n"
+            #endif
             typeinfer_expr env (App (Var op, e))
         
         | BinOp (e1, ("+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" as ope), e2) ->
@@ -303,7 +337,9 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
                 apply_subst t2 s, s
 
         | App (e1, e2) ->
+            #if DEBUG
             printf "\nApp\n"
+            #endif
             let t1, s1 = typeinfer_expr env e1
             let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
 
@@ -324,22 +360,32 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             //t, s4
 
         | Lambda (var_name, tyo, e) ->
+            #if DEBUG
             printf "\nLambda\n"
+            #endif
 
             let alpha = new_fresh_name ()
+            #if DEBUG
             printf "alpha: %O\n" alpha
+            #endif
 
             let new_scheme = Forall(Set.empty, alpha)
+            #if DEBUG
             printf "new_scheme: %O\n" new_scheme
+            #endif
 
 
             let t2, s1 = typeinfer_expr ((var_name, new_scheme) :: env) e
+            #if DEBUG
             printf "t2: %O\n" t2
             printf "s1: %O\n" s1
+            #endif
 
             let t1: ty = apply_subst alpha s1
+            #if DEBUG
             printf "t1: %O\n" t1
             printf "tyo: %O\n" tyo
+            #endif
 
             let ret =
                 match tyo with
@@ -351,17 +397,24 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
                     printf "s: %O\n" s
                     s
 
-            printf "ret: %O\n" ret                    
+            #if DEBUG
+            printf "ret: %O\n" ret      
+            #endif              
             TyArrow((apply_subst t1 ret), t2), ret $ s1
 
         | Let (var_name, tyo, e1, e2) ->
+            
+            #if DEBUG
             printf "\nLet\n"
             printf "env: %O\n" env
             printf "e1: %O\n" e1
+            #endif
 
             let t1, s1 = typeinfer_expr env e1
+            #if DEBUG
             printf "t1: %O\n" t1
             printf "s1: %O\n" s1
+            #endif
 
             let styo = 
                 match tyo with
@@ -396,7 +449,9 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             //    apply_subst t2 s4, s4 $ s2
 
         | LetRec (var_name, tyo, e1, e2) ->
+            #if DEBUG
             printf "\nLetRec\n"
+            #endif
             let alpha = new_fresh_name ()
             let sch = Forall(Set.empty, alpha)
 
@@ -426,7 +481,9 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
                 apply_subst t2 s4, s4 $ s2
             
         | Tuple tup ->
+            #if DEBUG
             printf "\Tuple\n"
+            #endif
             let infer_expr (accu_t, accu_s) expr =
                 let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
                 (accu_t @ List.singleton (apply_subst t_i s_i)), (s_i $ accu_s)
@@ -447,9 +504,11 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             *)
     
         | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
-        
+    
+    #if DEBUG    
     printf"\n\nFINE e: %O \n" (e.GetType ())
     printf "\nnr :%O\n" nr
+    #endif
     nr
 
 

@@ -75,5 +75,8 @@ in ()
 
 // let f x y z = z (y x) in f
 
-let id x = x in
-id 3
+//let id x = x
+//id 3
+//id "stringa"
+
+let f x y z = z (y x) in f
