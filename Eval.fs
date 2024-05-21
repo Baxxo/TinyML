@@ -74,9 +74,6 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         | _ -> unexpected_error "eval_expr: unsupported guard value (%O) for IfThenElse" value_guard
         
     | App (e1, e2) ->
-        //printf "App\n\n"
-        //printf "e1: %O\n\n" e1
-        //printf "e2: %O\n\n" e2
 
         let v1 = eval_expr venv e1
         let v2 = eval_expr venv e2
@@ -87,15 +84,8 @@ let rec eval_expr (venv : value env) (e : expr) : value =
             eval_expr venv0 e0
 
         | RecClosure (venv',f, x, e0) ->
-            //printf "RecClosure\n\n"
-            //printf "venv': %O\n\n" venv'
-            //printf "f: %O\n\n" f
-            //printf "x: %O\n\n" x
-            //printf "e0:\ %O\n\n" e0
 
             let venv0 = (f, v1) :: (x, v2) :: venv'
-            
-            //printf "venv0: %O\n\n" venv0
 
             eval_expr venv0 e0
 
@@ -107,11 +97,6 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         eval_expr venv' e2
 
     | LetRec (f, _, e1, e2) ->
-        //printf "LetRec\n\n"
-        //printf "venv: %O\n\n" venv
-        //printf "f: %O\n\n" f
-        //printf "e1: %O\n\n" e1
-        //printf "e2: %O\n\n" e2
 
         let v1 = eval_expr venv e1
 
@@ -119,10 +104,6 @@ let rec eval_expr (venv : value env) (e : expr) : value =
         let vc =
             match v1 with
             | Closure (venv', x, e) ->
-                //printf "Closure\n\n"
-                //printf "venv': %O\n\n" venv'
-                //printf "x: %O\n\n" x
-                //printf "e: %O\n\n" e
                 RecClosure(venv', f, x, e)
 
             | _ -> unexpected_error "not rec-closure on left hand of application"

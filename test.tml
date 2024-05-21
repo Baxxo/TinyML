@@ -72,3 +72,8 @@ in ()
 // (fun x -> fun y -> fun z -> if x then y else z) (if 10 > 15 then true else false) (10) (let a = 50 in a)
 
 // fun x -> fun y -> fun z -> x
+
+// let f x y z = z (y x) in f
+
+let id x = x in
+id 3

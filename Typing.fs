@@ -55,6 +55,7 @@ let freevars_scheme_env (env : ('a * scheme) list) =
     List.fold (fun ftv_env (s_tyvar, ty) -> ftv_env + freevars_scheme ty) Set.empty env
 
 let rec apply_subst (t : ty) (s : subst) : ty =
+    printf "\napply_subst: %O, %O\n" t s
     match t with
     | TyName _ -> t
     | TyVar n ->
@@ -62,50 +63,85 @@ let rec apply_subst (t : ty) (s : subst) : ty =
         let op = List.tryFind (fun (n', t) -> n = n') s
         match op with
         | None -> t
-        | Some (_, r) -> r
+        | Some (_, r) ->
+            // circolarità
+            let free_t = freevars_ty r
+
+            if Set.contains n free_t then type_error "Circularity not allowed, substituion: [%O -> %O]" n r
+            r
+
     | TyArrow (t1, t2) -> TyArrow (apply_subst t1 s, apply_subst t2 s)
     | TyTuple tuple -> let new_tuple =  List.map (fun x -> apply_subst x s) tuple in TyTuple(new_tuple)
 
-let rec apply_subst_to_subst (s1: subst) (s2:subst): subst =
-    match s2 with
-    | [] -> []
-    | (v, t_y) :: t -> (v, apply_subst t_y s1) :: apply_subst_to_subst s1 t
+//let rec apply_subst_to_subst (s1: subst) (s2:subst): subst =
+//    printf "apply_subst_to_subst: %O, %O\n" s1 s2
+//    match s2 with
+//    | [] -> []
+//    | (v, t_y) :: t -> (v, apply_subst t_y s1) :: apply_subst_to_subst s1 t
 
 // devo applicare le substitution a tutte le coppie che non contengono la prima parte della substitution
 let apply_subst_to_scheme (Forall(tvs, t)) (s: subst): scheme =
+    printf "\napply_subst_to_scheme: Forall(%O, %O), %O\n" tvs t s
     let new_subst = List.filter (fun (tv,_) -> not (Set.contains tv tvs)) s
     Forall(tvs, apply_subst t new_subst)
 
 let rec apply_subst_to_env (env: scheme env) (s: subst): scheme env =
+    printf "\napply_subst_to_env: %O, %O\n" env s
     match env with
     | [] -> []
     | (tv, t) :: tail ->
         (tv, apply_subst_to_scheme t s) :: apply_subst_to_env tail s
     
 
-let rec compose_subst (s1 : subst) (s2 : subst) : subst = //s1 @ s2
-    match s1 with
-    | [] -> []
-    | (v,ty) :: t ->  // appplicare s2 a t
-        apply_subst_to_subst t s2
-        
+//let rec compose_subst (s1 : subst) (s2 : subst) : subst = // s1 $ s2
+//    printf "compose_subst: %O, %O\n" s1 s2
+//    match s1 with
+//    | [] -> []
+//    | (v,ty) :: t ->  // appplicare s2 a t
+//        let ty' = apply_subst s2 ty
+//        (v, ty') :: compose_subst t s2 // Ricostruisci la lista con la nuova coppia e continua con il resto della sostituzione
+
+//let rec compose_subst (s1 : subst) (s2 : subst) : subst =
+//    printf "\ncompose_subst: %O, %O\n" s1 s2
+//    match s1 with
+//    | [] -> []
+//    | (v, ty) :: t ->
+//        let ty' = apply_subst ty s2 
+//        (v, ty') :: compose_subst t s2
+
+(*
+La funzione compose_subst deve concatenare correttamente le sostituzioni e applicare s2 a ty
+prima di aggiungerla alla lista delle sostituzioni composte.
+Inoltre, dobbiamo filtrare le sostituzioni di s2 che non sono già presenti in s1.
+*)
+let rec compose_subst (s1 : subst) (s2 : subst) : subst =
+    printf "\ncompose_subst: %O, %O\n" s1 s2
+    let s1' = List.map (fun (v, ty) -> (v, apply_subst ty s2)) s1
+    let s2' = List.filter (fun (v, _) -> not (List.exists (fun (v', _) -> v = v') s1)) s2
+    s1' @ s2'
+
+
 
 let ($) = compose_subst
 
 // accept two types and produces a substitution that makes the 2 types equal
-let rec unify (t1 : ty) (t2 : ty) : subst = 
+let rec unify (t1 : ty) (t2 : ty) : subst =
+    printf "\nunify: %O, %O\n" t1 t2
     match (t1, t2) with
     | (TyName s1, TyName s2) when s1 = s2 -> []
+
     | (TyVar n, t)
     | (t, TyVar n) -> [n, t]
-    | (TyArrow (t1, t2), TyArrow (t3, t4)) -> compose_subst (unify t1 t3) (unify t2 t4)
+
+    | (TyArrow (t1, t2), TyArrow (t3, t4)) -> (unify t1 t3) $ (unify t2 t4)
+
     | (TyTuple(t1), TyTuple(t2)) ->
         if t1.Length <> t2.Length then
             type_error "unify: t1 and t2 have different legntgh (%d, %d)" t1.Length t2.Length
         else
             match t1, t2 with
             | [], [] -> []
-            | h1 :: tail1, h2 :: tail2 -> compose_subst (unify h1 h2) (unify (TyTuple(tail1)) (TyTuple(tail2)))
+            | h1 :: tail1, h2 :: tail2 -> (unify h1 h2) $ (unify (TyTuple(tail1)) (TyTuple(tail2)))
             | _ -> type_error "unify Tuple: t1 and t2 are not type (%O %O)" t1 t2
 
     | _ -> type_error "%s does not unify with %s" (pretty_ty t1) (pretty_ty t2)
@@ -145,6 +181,7 @@ let gamma0_infer = [
 // polymorphic types through the universal quantifier Forall
 let generalize env t =
     let diff = Set.difference (freevars_ty t) (freevars_scheme_env env)
+    printf "diff: %O\n" diff
     Forall(diff, t)
 
 // Instantiation
@@ -153,6 +190,7 @@ let generalize env t =
 // converting type scheme into a type by refreshing its polymorphic type variables
 let instantiate (Forall (tvs, t)) : ty =
     let new_vars:subst = Set.fold (fun acc ty_name -> (ty_name, new_fresh_name ()) :: acc ) List.empty tvs
+    printf "new_vars: %O\n" new_vars
     apply_subst t new_vars
 
 
@@ -160,206 +198,259 @@ let instantiate (Forall (tvs, t)) : ty =
 //
 
 let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
-    match e with
-    | Lit (LInt _) -> TyInt, []
-    | Lit (LBool _) -> TyBool, []
-    | Lit (LFloat _) -> TyFloat, [] 
-    | Lit (LString _) -> TyString, []
-    | Lit (LChar _) -> TyChar, [] 
-    | Lit LUnit -> TyUnit, []
+    printf"\n\ne: %O \n" e
+    printf"\n\ne: %O \n" (e.GetType ())
+
+    let nr =
+        match e with
+        | Lit (LInt _) ->
+            printf "\nLInt\n"
+            TyInt, []
+        | Lit (LBool _) -> 
+            printf "\nLBool\n"
+            TyBool, []
+        | Lit (LFloat _) -> 
+            printf "\nLFloat\n"
+            TyFloat, [] 
+        | Lit (LString _) -> 
+            printf "\nLString\n"
+            TyString, []
+        | Lit (LChar _) -> 
+            printf "\nLChar\n"
+            TyChar, [] 
+        | Lit LUnit -> 
+            printf "\nLUnit\n"
+            TyUnit, []
     
-    | Var (var_name) -> 
-        let (value_var : scheme) = lookup_scheme env var_name
-        let (var_ty: ty) = instantiate value_var
+        | Var (var_name) -> 
+            printf "\nVar\n"
+            let (value_var : scheme) = lookup_scheme env var_name
+            let (var_ty: ty) = instantiate value_var
+        
+            printf "var_ty: %O\n" var_ty
+            var_ty, []
 
-        var_ty, []
+        | UnOp("not", e) ->
+            let t1, s1 = typeinfer_expr env e
+            let s2 = unify t1 TyBool
+            let s3 = s2 $ s1
+        
+            TyBool, s3
+        
+        | UnOp (op, e) ->
+            printf "\UnOp\n"
+            typeinfer_expr env (App (Var op, e))
+        
+        | BinOp (e1, ("+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" as ope), e2) ->
+            let t1, s1 = typeinfer_expr env e1
+            let s2 = unify t1 TyInt
+            let s3 = s2 $ s1
+        
+            let env' = apply_subst_to_env env s3
+        
+            let t2, s4 = typeinfer_expr env' e2
+            let s5 = unify t2 TyInt
+            let s6 = s5 $ s4
 
-    | UnOp("not", e) ->
-        let t1, s1 = typeinfer_expr env e
-        let s2 = unify t1 TyBool
-        let s3 = s2 $ s1
+            match ope with
+            | "+" | "-" | "*" | "/" | "%" -> TyInt, s6
+            | "<" | ">" | "<=" | ">=" -> TyBool, s6
+            | _ -> type_error "Unsupported operator %s" ope
         
-        TyBool, s3
+        | BinOp (e1, ("and" | "or" as ope), e2) ->
+            let t1, s1 = typeinfer_expr env e1
+            let s2 = unify t1 TyBool
+            let s3 = s2 $ s1
         
-    | UnOp (op, e) ->
-        typeinfer_expr env (App (Var op, e))
+            let env' = apply_subst_to_env env s3
         
-    | BinOp (e1, ("+" | "-" | "*" | "/" | "%" | "<" | ">" | "<=" | ">=" as ope), e2) ->
-        let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyInt
-        let s3 = s2 $ s1
-        
-        let env' = apply_subst_to_env env s3
-        
-        let t2, s4 = typeinfer_expr env' e2
-        let s5 = unify t2 TyInt
-        let s6 = s5 $ s4
+            let t2, s4 = typeinfer_expr env' e2
+            let s5 = unify t2 TyBool
+            let s6 = s5 $ s4
 
-        match ope with
-        | "+" | "-" | "*" | "/" | "%" -> TyInt, s6
-        | "<" | ">" | "<=" | ">=" -> TyBool, s6
-        | _ -> type_error "Unsupported operator %s" ope
-        
-    | BinOp (e1, ("and" | "or" as ope), e2) ->
-        let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyBool
-        let s3 = s2 $ s1
-        
-        let env' = apply_subst_to_env env s3
-        
-        let t2, s4 = typeinfer_expr env' e2
-        let s5 = unify t2 TyBool
-        let s6 = s5 $ s4
-
-        match ope with
-        | "and" | "or" -> TyBool, s6
-        | _ -> type_error "Unsupported operator %s" ope
+            match ope with
+            | "and" | "or" -> TyBool, s6
+            | _ -> type_error "Unsupported operator %s" ope
     
     
-    | BinOp (e1, ("=" as ope), e2) ->
-        let t1, s1 = typeinfer_expr env e1
-        let t2, s2 = typeinfer_expr env e2
+        | BinOp (e1, ("=" as ope), e2) ->
+            let t1, s1 = typeinfer_expr env e1
+            let t2, s2 = typeinfer_expr env e2
 
-        let sz = unify t1 t2
+            let sz = unify t1 t2
 
-        let s3 = sz $ s2 $ s1
+            let s3 = sz $ s2 $ s1
 
-        TyBool, s3
+            TyBool, s3
 
-    | IfThenElse (e1, e2, e3o) ->
-        let t1, s1 = typeinfer_expr env e1
-        let s2 = unify t1 TyBool
+        | IfThenElse (e1, e2, e3o) ->
+            let t1, s1 = typeinfer_expr env e1
+            let s2 = unify t1 TyBool
 
-        let t2, s3 = typeinfer_expr env e2
-        match e3o with        
-        | None ->
-            let s4 = unify t2 TyUnit
+            let t2, s3 = typeinfer_expr env e2
+            match e3o with        
+            | None ->
+                let s4 = unify t2 TyUnit
 
-            let s = s4 $ s3 $ s2 $ s1
-            apply_subst t2 s, s
+                let s = s4 $ s3 $ s2 $ s1
+                apply_subst t2 s, s
 
-        | Some e3 ->
-            let t3, s4 = typeinfer_expr env e3
-            let s5 = unify t2 t3
+            | Some e3 ->
+                let t3, s4 = typeinfer_expr env e3
+                let s5 = unify t2 t3
 
-            let s = s5 $ s4 $ s3 $ s2 $ s1
-            apply_subst t2 s, s
+                let s = s5 $ s4 $ s3 $ s2 $ s1
+                apply_subst t2 s, s
 
-    | App (e1, e2) ->
-        // questo secondo il foglio,
-        // secondo wikipedia però dovrei utilizzare ciò che c'è tra //
-        // https://wikimedia.org/api/rest_v1/media/math/render/svg/431b94815103ac9dc77d0e92739456c3c2c90803
-        let t1, s1 = typeinfer_expr env e1
+        | App (e1, e2) ->
+            printf "\nApp\n"
+            let t1, s1 = typeinfer_expr env e1
+            let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
 
-        let t2, s2 = typeinfer_expr (apply_subst_to_env env s1) e2
+            let alpha = new_fresh_name ()
 
-        let alpha = new_fresh_name ()
+            let s3 = s2 $ s1
 
-        // let s3 = unify (apply_subst t1 s2) (TyArrow (t2, alpha))
-        let s3 = unify t1 (TyArrow (t2, alpha))
+            let s4 = unify (TyArrow (apply_subst t2 s3, alpha)) (apply_subst t1 s3)
 
-        let t = apply_subst alpha s3
+            apply_subst alpha s4, s4 $ s3
+        
+            //let s3 = unify t1 (TyArrow (t2, alpha))
 
-        // let s4 = s3 $ s2 $ s1
-        let s4 = s3 $ s2
+            //let t = apply_subst alpha s3
 
-        t, s4
+            //let s4 = s3 $ s2
 
-    | Lambda (var_name, tyo, e) ->
-        // inizio lez. 17
-        // per poli lez. 20
-        let alpha = new_fresh_name ()
-        let new_scheme = Forall(Set.empty, alpha) 
+            //t, s4
 
-        let (t2: ty, s1:subst) = typeinfer_expr ((var_name, new_scheme) :: env) e
+        | Lambda (var_name, tyo, e) ->
+            printf "\nLambda\n"
 
-        let t1: ty = apply_subst alpha s1
+            let alpha = new_fresh_name ()
+            printf "alpha: %O\n" alpha
 
-        match tyo with
-        | None -> TyArrow(t1, t2), s1
-        | Some t_n ->
-            // Rendo i tipi compatibili trovando una sostituzione
-            let s = unify t_n t1
-            // Applico a t1 e t2
-            let t1 = apply_subst t1 s
-            let t2 = apply_subst t2 s
-            // Restituisco il tipo della funzione e la sostituzione risultante
-            TyArrow(t1, t2), s
+            let new_scheme = Forall(Set.empty, alpha)
+            printf "new_scheme: %O\n" new_scheme
 
-    | Let (var_name, tyo, e1, e2) ->
-        // lez. 19
-        let t1, s1 = typeinfer_expr env e1
 
-        let env' = apply_subst_to_env env s1
+            let t2, s1 = typeinfer_expr ((var_name, new_scheme) :: env) e
+            printf "t2: %O\n" t2
+            printf "s1: %O\n" s1
 
-        let scheme1 = generalize env t1
+            let t1: ty = apply_subst alpha s1
+            printf "t1: %O\n" t1
+            printf "tyo: %O\n" tyo
 
-        // lez. 15
-        let new_env = (var_name, scheme1) :: env'
-
-        let t2, s2 = typeinfer_expr new_env e2
-
-        match tyo with
-        | None -> t2, s2 $ s1
-        | Some t ->
-            // Rendo i tipi compatibili trovando una sostituzione
-            let s = unify t1 t
-            let s4 = s $ s1
-            // Restituisco il tipo della funzione e la sostituzione risultante
-            apply_subst t2 s4, s4 $ s2
-
-    | LetRec (var_name, tyo, e1, e2) ->
-        let alpha = new_fresh_name ()
-        let sch = Forall(Set.empty, alpha)
-
-        let env' = (var_name, sch) :: env
-
-        let t1, s1 = typeinfer_expr env' e1
-
-        let env1 = apply_subst_to_env env s1
-
-        let scheme1 = generalize env1 t1
-
-        let new_env = (var_name, scheme1) :: env1
-
-        let t2, s2 = typeinfer_expr new_env e2
-
-        let s3 = unify alpha (apply_subst t1 s1)
-
-        let s4 = s3 $ s2 $ s1
-
-        match tyo with
-        | None -> t2, s4
-        | Some t ->
-            // Rendo i tipi compatibili trovando una sostituzione
-            let s = unify t1 t
-            let s4 = s $ s1
-            // Restituisco il tipo della funzione e la sostituzione risultante
-            apply_subst t2 s4, s4 $ s2
+            let ret =
+                match tyo with
+                | None -> []
+                | Some t_n ->
             
-    | Tuple tup ->
-        
-        let infer_expr (accu_t, accu_s) expr =
-            let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
-            (accu_t @ List.singleton (apply_subst t_i s_i)), (s_i $ accu_s)
+                    // Rendo i tipi compatibili trovando una sostituzione
+                    let s = unify t_n t1
+                    printf "s: %O\n" s
+                    s
 
-        let ty_tup, sub_tup = List.fold infer_expr ( [], []) tup
+            printf "ret: %O\n" ret                    
+            TyArrow((apply_subst t1 ret), t2), ret $ s1
+
+        | Let (var_name, tyo, e1, e2) ->
+            printf "\nLet\n"
+            printf "env: %O\n" env
+            printf "e1: %O\n" e1
+
+            let t1, s1 = typeinfer_expr env e1
+            printf "t1: %O\n" t1
+            printf "s1: %O\n" s1
+
+            let styo = 
+                match tyo with
+                | None -> List.empty
+                | Some t -> unify t1 t
+
+            let s4 = styo $ s1
+
+            let scheme1 = generalize env (apply_subst t1 s4)
+
+            let t2, s2 = typeinfer_expr ((var_name, scheme1) :: apply_subst_to_env env s4 ) e2
+
+            let s5 = s2 $ s4
+
+            apply_subst t2 s5, s5
+
+            //let env' = apply_subst_to_env env s4
+
+            //let scheme1 = generalize env' (apply_subst s4 t1)
+
+            //let new_env = (var_name, scheme1) :: env'
+
+            //let t2, s2 = typeinfer_expr new_env e2
+
+            //match tyo with
+            //| None -> t2, s2 $ s1
+            //| Some t ->
+            //    // Rendo i tipi compatibili trovando una sostituzione
+            //    let s = unify t1 t
+            //    let s4 = s $ s1
+            //    // Restituisco il tipo della funzione e la sostituzione risultante
+            //    apply_subst t2 s4, s4 $ s2
+
+        | LetRec (var_name, tyo, e1, e2) ->
+            printf "\nLetRec\n"
+            let alpha = new_fresh_name ()
+            let sch = Forall(Set.empty, alpha)
+
+            let env' = (var_name, sch) :: env
+
+            let t1, s1 = typeinfer_expr env' e1
+
+            let env1 = apply_subst_to_env env s1
+
+            let scheme1 = generalize env1 t1
+
+            let new_env = (var_name, scheme1) :: env1
+
+            let t2, s2 = typeinfer_expr new_env e2
+
+            let s3 = unify alpha (apply_subst t1 s1)
+
+            let s4 = s3 $ s2 $ s1
+
+            match tyo with
+            | None -> t2, s4
+            | Some t ->
+                // Rendo i tipi compatibili trovando una sostituzione
+                let s = unify t1 t
+                let s4 = s $ s1
+                // Restituisco il tipo della funzione e la sostituzione risultante
+                apply_subst t2 s4, s4 $ s2
+            
+        | Tuple tup ->
+            printf "\Tuple\n"
+            let infer_expr (accu_t, accu_s) expr =
+                let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
+                (accu_t @ List.singleton (apply_subst t_i s_i)), (s_i $ accu_s)
+
+            let ty_tup, sub_tup = List.fold infer_expr ( [], []) tup
 
 
-        TyTuple ty_tup, sub_tup
-        (*
-        per fare type infer del tipo sulle tuple devo
-        -  applicare ad ogni expr la type inference (con una map sulla lista tipo),
-            con l'env aggiornato a quella prima (qui è la parte che boh)
-             - per fare questo posso accumulare tutte le substitution e applicarle ogni volta all'env originale
-             (non c'è bisogno di portarsi dietro l'env modificato)
+            TyTuple ty_tup, sub_tup
+            (*
+            per fare type infer del tipo sulle tuple devo
+            -  applicare ad ogni expr la type inference (con una map sulla lista tipo),
+                con l'env aggiornato a quella prima (qui è la parte che boh)
+                 - per fare questo posso accumulare tutte le substitution e applicarle ogni volta all'env originale
+                 (non c'è bisogno di portarsi dietro l'env modificato)
                
-        -  poi faccio una fold della lista delle expr e delle substitution
-        -  ritorno
-        *)
+            -  poi faccio una fold della lista delle expr e delle substitution
+            -  ritorno
+            *)
     
-    | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
-
+        | _ -> type_error "typeinfer_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
+        
+    printf"\n\nFINE e: %O \n" (e.GetType ())
+    printf "\nnr :%O\n" nr
+    nr
 
 
 // type checker

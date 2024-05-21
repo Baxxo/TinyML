@@ -1,1 +1,1 @@
-﻿if true then 10
+﻿let f x y z = z (y x)

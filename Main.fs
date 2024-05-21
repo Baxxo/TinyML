@@ -25,6 +25,8 @@ let interpret_expr tenv venv e =
     #endif
     //let t = Typing.typecheck_expr tenv e
     let (t_new, subst_ret) = Typing.typeinfer_expr tenv e
+    printf "\nt_new: %O\n" t_new
+    printf "subst_ret: %O\n" subst_ret
     let t = Typing.apply_subst t_new subst_ret
     #if DEBUG
     printfn "type:\t%s" (pretty_ty t)
