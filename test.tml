@@ -79,4 +79,8 @@ in ()
 //id 3
 //id "stringa"
 
+//let f x y z = z (y x) in f
+
+//let ann (x: int) (y: int) (w: float) (z: bool) : int -> int -> float -> bool -> unit = () in ann
+
 let f x y z = z (y x) in f

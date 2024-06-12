@@ -12,21 +12,15 @@ let type_error fmt = throw_formatted TypeError fmt
 type subst = (tyvar * ty) list
 
 
-
 let lookup env (x : string) : 'a = 
-  //let _, value_find = List.find (fun (x', _) -> x = x') env
-  //value_find
   let op = List.tryFind (fun (x', _) -> x = x') env
   match op with
   | None -> type_error "Error during lookup of %s" x
   | Some (_, value_find) -> value_find
   
 let lookup_scheme (env: scheme env) (x: string) : scheme =
-  (*let _, value_find = List.find (fun (x', _) -> x = x') env
-  value_find*)
   let value_find = lookup env x
   value_find
-
 
 // Freevar
 // 
@@ -99,22 +93,6 @@ let rec apply_subst_to_env (env: scheme env) (s: subst): scheme env =
         (tv, apply_subst_to_scheme t s) :: apply_subst_to_env tail s
     
 
-//let rec compose_subst (s1 : subst) (s2 : subst) : subst = // s1 $ s2
-//    printf "compose_subst: %O, %O\n" s1 s2
-//    match s1 with
-//    | [] -> []
-//    | (v,ty) :: t ->  // appplicare s2 a t
-//        let ty' = apply_subst s2 ty
-//        (v, ty') :: compose_subst t s2 // Ricostruisci la lista con la nuova coppia e continua con il resto della sostituzione
-
-//let rec compose_subst (s1 : subst) (s2 : subst) : subst =
-//    printf "\ncompose_subst: %O, %O\n" s1 s2
-//    match s1 with
-//    | [] -> []
-//    | (v, ty) :: t ->
-//        let ty' = apply_subst ty s2 
-//        (v, ty') :: compose_subst t s2
-
 (*
 La funzione compose_subst deve concatenare correttamente le sostituzioni e applicare s2 a ty
 prima di aggiungerla alla lista delle sostituzioni composte.
@@ -156,6 +134,31 @@ let rec unify (t1 : ty) (t2 : ty) : subst =
 
     | _ -> type_error "%s does not unify with %s" (pretty_ty t1) (pretty_ty t2)
 
+
+// Generalization
+// 
+
+// generalization promotes a type t to a type scheme o by quantifying type variables that represent
+// polymorphic types through the universal quantifier Forall
+let generalize env t =
+    let diff = Set.difference (freevars_ty t) (freevars_scheme_env env)
+    #if DEBUG
+    printf "diff: %O\n" diff
+    #endif
+    Forall(diff, t)
+
+// Instantiation
+// 
+
+// converting type scheme into a type by refreshing its polymorphic type variables
+let instantiate (Forall (tvs, t)) : ty =
+    let new_vars:subst = Set.fold (fun acc ty_name -> (ty_name, new_fresh_name ()) :: acc ) List.empty tvs
+    #if DEBUG
+    printf "new_vars: %O\n" new_vars
+    #endif
+    apply_subst t new_vars
+
+
 // basic environment: add builtin operators at will
 //
 
@@ -182,30 +185,6 @@ let gamma0_infer = [
     ("<=", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyBool))))
     (">=", Forall (Set.empty, TyArrow (TyInt, TyArrow (TyInt, TyBool))))
 ]
-
-
-// Generalization
-// 
-
-// generalization promotes a type t to a type scheme o by quantifying type variables that represent
-// polymorphic types through the universal quantifier Forall
-let generalize env t =
-    let diff = Set.difference (freevars_ty t) (freevars_scheme_env env)
-    #if DEBUG
-    printf "diff: %O\n" diff
-    #endif
-    Forall(diff, t)
-
-// Instantiation
-// 
-
-// converting type scheme into a type by refreshing its polymorphic type variables
-let instantiate (Forall (tvs, t)) : ty =
-    let new_vars:subst = Set.fold (fun acc ty_name -> (ty_name, new_fresh_name ()) :: acc ) List.empty tvs
-    #if DEBUG
-    printf "new_vars: %O\n" new_vars
-    #endif
-    apply_subst t new_vars
 
 
 // type inference
@@ -350,14 +329,6 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             let s4 = unify (TyArrow (apply_subst t2 s3, alpha)) (apply_subst t1 s3)
 
             apply_subst alpha s4, s4 $ s3
-        
-            //let s3 = unify t1 (TyArrow (t2, alpha))
-
-            //let t = apply_subst alpha s3
-
-            //let s4 = s3 $ s2
-
-            //t, s4
 
         | Lambda (var_name, tyo, e) ->
             #if DEBUG
@@ -431,23 +402,6 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
 
             apply_subst t2 s5, s5
 
-            //let env' = apply_subst_to_env env s4
-
-            //let scheme1 = generalize env' (apply_subst s4 t1)
-
-            //let new_env = (var_name, scheme1) :: env'
-
-            //let t2, s2 = typeinfer_expr new_env e2
-
-            //match tyo with
-            //| None -> t2, s2 $ s1
-            //| Some t ->
-            //    // Rendo i tipi compatibili trovando una sostituzione
-            //    let s = unify t1 t
-            //    let s4 = s $ s1
-            //    // Restituisco il tipo della funzione e la sostituzione risultante
-            //    apply_subst t2 s4, s4 $ s2
-
         | LetRec (var_name, tyo, e1, e2) ->
             #if DEBUG
             printf "\nLetRec\n"
@@ -482,7 +436,7 @@ let rec typeinfer_expr (env : scheme env) (e : expr) : ty * subst =
             
         | Tuple tup ->
             #if DEBUG
-            printf "\Tuple\n"
+            printf "\nTuple\n"
             #endif
             let infer_expr (accu_t, accu_s) expr =
                 let t_i, s_i = typeinfer_expr (apply_subst_to_env env accu_s) expr
@@ -598,91 +552,3 @@ let rec typecheck_expr (env : ty env) (e : expr) : ty =
     | Tuple es -> TyTuple (List.map (typecheck_expr env) es)
 
     | _ -> type_error "typecheck_expr: unsupported expression: %s [AST: %A]" (pretty_expr e) e
-
-
-(*
-
-| IfThenElse (e1, e2, e3o) ->
-(*
-Versione prof
-let t1, s1 = typeinfer_expr env e1
-let s2 = unify t1 TyBool
-
-let t2, s3 = typeinfer_expr env e2
-let t3, s4 = typeinfer_expr env e3
-let s5 = unify t2 t3
-
-let s = s5 $ s4 $ s3 $ s2 $ s1
-apply_subst t2 s, s
-*)
-
-let t1, s1 = typeinfer_expr env e1
-let s2 = unify t1 TyBool
-
-let t2, s3 = typeinfer_expr env e2
-match e3o with        
-| None ->
-    let s4 = unify t2 TyUnit
-
-    let s = s4 $ s3 $ s2 $ s1
-    apply_subst t2 s, s
-
-| Some e3 ->
-    let t3, s4 = typeinfer_expr env e3
-    let s5 = unify t2 t3
-
-    let s = s5 $ s4 $ s3 $ s2 $ s1
-    apply_subst t2 s, s
-
-(*
-let t1, s1 = typeinfer_expr env e1
-let s2 = unify t1 TyBool
-
-let s3 = s2 $ s1
-let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
-
-let s5 = s4 $ s3
-
-match e3o with        
-| None ->        
-    let s6 = unify t2 TyUnit                    
-    apply_subst t2 s5, s6
-
-| Some e3 ->
-    let t3, s6 = typeinfer_expr (apply_subst_to_env env s5) e3
-
-    let s7 = s6 $ s5
-
-    let s8 = unify (apply_subst t2 s7) (apply_subst t3 s7)
-
-    let s9 = s8 $ s7
-
-    apply_subst t2 s8, s9
-*)
-
-    (*| IfThenElse (e1, e2, None) ->
-(*
-Versione prof
-let t1, s1 = typeinfer_expr env e1
-let s2 = unify t1 TyBool
-
-let t2, s3 = typeinfer_expr env e2
-let s4 = unify t2 TyUnit
-
-let s = s4 $ s3 $ s2 $ s1
-apply_subst t2 s, s
-*)
-
-let t1, s1 = typeinfer_expr env e1
-let s2 = unify t1 TyBool
-        
-let s3 = s2 $ s1
-let t2, s4 = typeinfer_expr (apply_subst_to_env env s3) e2
-
-let s5 = s4 $ s3
-
-let s6 = unify t2 TyUnit
-
-apply_subst t2 s5, s6*)
-
-*)
