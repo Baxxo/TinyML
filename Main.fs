@@ -70,7 +70,9 @@ let main_interactive () =
                     let t, v = interpret_expr tenv venv (LetIn (b, Var x)) // TRICK: put the variable itself as body after the in
                     // update global environments
                     //tenv <- (x, t) :: tenv // typecheck_expr
-                    tenv <- (x, Forall(Set.empty,t)) :: tenv // typeinfer_expr
+                    //tenv <- (x, Forall(Set.empty,t)) :: tenv // typeinfer_expr
+                    // before the type get instatiate, generalize the type t in order to propagate the substitution
+                    tenv <- (x, Typing.generalize tenv t) :: tenv // typeinfer_expr
                     venv <- (x, v) :: venv
                     x, (t, v)
 
