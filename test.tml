@@ -83,4 +83,5 @@ in ()
 
 //let ann (x: int) (y: int) (w: float) (z: bool) : int -> int -> float -> bool -> unit = () in ann
 
-let f x y z = z (y x) in f
+//let f x y z = z (y x) in f
+let id x = x in (id 7, id true, id "str")
