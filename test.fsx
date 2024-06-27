@@ -1,20 +1,96 @@
-﻿//let test1 f g h = (f g) g (f h)
+﻿// tree data type
 
-//let f x y z = z (y x) in f
+// map function
 
-//let rec g x y z = g (z (y x)) in g
+// fold function
 
-//let tupint = (1, 2, 3) in tupint
+type 'a BinTree =
 
-//let tupstr = ("a","b","c") in tupstr
+    // empty type, like leaf = (value, Empty, Empty)
+    | Empty
 
-//let tupmix = (1,"b",2.3) in tupmix
+    // node type, for every node of the tree
+    | Node of 'a * 'a BinTree * 'a BinTree
 
-//let a = a in let b = b in let c = c in let tuplepoli = (a,b,c) in tuplepoli
 
-//let rec g x y z = g (z (y x)) in g
+let rec map_tree tree func =
+    match tree with
+    | Empty -> Empty
+    | Node (value, left, right) ->
 
-let id x = x
-(id 7, id true, id "str")
+        // apply func to the value
+        let new_val = func value
 
-// non funziona, capire perché
+        // apply to the left branch
+        let new_left = map_tree left func
+
+        // apply to the right branch
+        let new_right = map_tree right func
+
+        // return the new node
+        Node (new_val, new_left, new_right)
+
+
+let rec fold_tree tree func accu =
+    | Empty -> accu
+    | Node (value, left, right) ->
+
+        // first fold left branch
+        let accu_left = fold_tree (left, func, accu)
+
+        // then accumulate in the new value the left accumulator with the value of the fold of right branch
+        let accu_right = fold_tree (right, func, accu_left)
+
+        // then return the value proccessed by the function passed by the user
+        func (value, accu_right)
+
+
+
+
+
+
+
+
+
+
+
+type BinTree<'T> =
+
+    // empty type, like leaf = (value, Empty, Empty)
+    | Empty
+
+    // node type, for every node of the tree
+    | Node of 'T * BinTree<'T> * BinTree<'T>
+
+
+let rec map_tree tree func =
+    match tree with
+    | Empty -> Empty
+    | Node (value, left, right) ->
+        // apply func to the value
+        let new_val = func value
+
+        // apply to the left branch
+        let new_left = map_tree left func
+
+        // apply to the right branch
+        let new_right = map_tree right func
+
+        // return the new node
+        Node (new_val, new_left, new_right)
+
+
+let rec fold_tree tree func accu =
+    | Empty -> accu
+    | Node (value, left, right) ->
+
+        // first fold left branch
+        let accu_left = fold_tree (left, func, accu)
+
+        // then accumulate in the new value the left accumulator with the value of the fold of right branch
+        let accu_right = fold_tree (right, func, accu_left)
+
+        // then return the value proccessed by the function passed by the user
+        func (value, accu_right)
+
+
